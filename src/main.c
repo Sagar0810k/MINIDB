@@ -11,13 +11,13 @@ extern int yylineno;
 
 void print_banner() {
     printf("\n");
-    printf("╔══════════════════════════════════════╗\n");
-    printf("║         Mini DBMS v1.0               ║\n");
-    printf("║   Custom SQL Database Management     ║\n");
-    printf("║                                      ║\n");
-    printf("║   Type 'EXIT;' to quit               ║\n");
-    printf("║   Type 'SHOW TABLES;' to list tables║\n");
-    printf("╚══════════════════════════════════════╝\n");
+    printf("========================================\n");
+    printf("         Mini DBMS v1.0                \n");
+    printf("   Custom SQL Database Management      \n");
+    printf("                                       \n");
+    printf("   Type 'EXIT;' to quit                \n");
+    printf("   Type 'SHOW TABLES;' to list tables \n");
+    printf("========================================\n");
     printf("\n");
 }
 
