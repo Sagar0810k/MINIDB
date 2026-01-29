@@ -2,6 +2,7 @@
 #include <sys/stat.h>
 
 #ifdef _WIN32
+    #include <direct.h>  /* For _mkdir on Windows */
     #define PATH_SEPARATOR "\\"
     #define mkdir(path, mode) _mkdir(path)
 #else

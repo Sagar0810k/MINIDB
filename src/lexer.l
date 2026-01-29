@@ -1,11 +1,27 @@
 %{
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include "../include/utils.h"
 #include "../include/executor.h"
 #include "parser.tab.h"
 
 extern int yylineno;
+
+/* Windows-compatible strndup replacement */
+#ifdef _WIN32
+char* strndup(const char* s, size_t n) {
+    size_t len = strlen(s);
+    if (n < len) len = n;
+    char* result = (char*)malloc(len + 1);
+    if (result) {
+        memcpy(result, s, len);
+        result[len] = '\0';
+    }
+    return result;
+}
+#endif
+
 %}
 
 %option noyywrap
