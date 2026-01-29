@@ -2,155 +2,218 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include "ast.h"
-#include "semantic.h"
-#include "executor.h"
+#include "../include/utils.h"
+#include "../include/db.h"
+#include "../include/executor.h"
 
 extern int yylex();
-void yyerror(const char *s);
+extern int yyparse();
+extern FILE *yyin;
+extern int yylineno;
 
-ASTNode *root;
+void yyerror(const char *s);
+int should_exit = 0;
 %}
 
-/* ===============================
-   Value Types
-   =============================== */
-
 %union {
+    int num;
     char *str;
-    ASTNode *node;
+    Column *col;
+    Column *col_list;
+    Value *val;
+    Value *val_list;
 }
 
-/* ===============================
-   Tokens
-   =============================== */
+%token CREATE TABLE INSERT INTO SELECT FROM VALUES
+%token INT_TYPE TEXT_TYPE EXIT SHOW TABLES
+%token LPAREN RPAREN COMMA SEMICOLON ASTERISK
 
-%token CREATE TABLE INSERT INTO VALUES SELECT FROM DELETE
-%token INT_T STRING_T
-%token BEGIN_T COMMIT ROLLBACK EXIT_T
-%token <str> IDENTIFIER NUMBER STRING
+%token <num> NUMBER
+%token <str> IDENTIFIER STRING
 
-%type <node> statement create_stmt insert_stmt select_stmt delete_stmt
+%type <col_list> column_defs column_def
+%type <val_list> value_list value
+
+%start statement_list
 
 %%
 
-/* ===============================
-   Grammar Rules
-   =============================== */
-
-input:
-    | input statement ';'
+statement_list:
+    /* empty */
+    | statement_list statement
     ;
 
 statement:
-      create_stmt   { root = $1; }
-    | insert_stmt   { root = $1; }
-    | select_stmt   { root = $1; }
-    | delete_stmt   { root = $1; }
-    | EXIT_T        {
-                        root = ast_create_node(AST_EXIT);
-                        execute(root);
-                        exit(0);
-                    }
+    create_table_stmt
+    | insert_stmt
+    | select_stmt
+    | show_tables_stmt
+    | exit_stmt
+    | error SEMICOLON { yyerrok; }
     ;
 
-/* ===============================
-   CREATE TABLE
-   =============================== */
+exit_stmt:
+    EXIT SEMICOLON {
+        should_exit = 1;
+        printf("Goodbye!\n");
+    }
+    ;
 
-create_stmt:
-    CREATE TABLE IDENTIFIER '(' column_defs ')'
-    {
-        $$ = ast_create_node(AST_CREATE_TABLE);
-        strcpy($$->schema.table_name, $3);
+show_tables_stmt:
+    SHOW TABLES SEMICOLON {
+        db_list_tables(global_db);
+    }
+    ;
+
+create_table_stmt:
+    CREATE TABLE IDENTIFIER LPAREN column_defs RPAREN SEMICOLON {
+        CreateTableData *data = (CreateTableData*)malloc(sizeof(CreateTableData));
+        strncpy(data->table_name, $3, MAX_NAME_LEN - 1);
+        data->table_name[MAX_NAME_LEN - 1] = '\0';
+        data->columns = $5;
+        data->col_count = 0;
+        
+        /* Count columns */
+        Column *temp = $5;
+        while (temp && data->col_count < MAX_COLUMNS) {
+            data->col_count++;
+            temp++;
+            if (strlen(temp->name) == 0) break;
+        }
+        
+        ASTNode *node = (ASTNode*)malloc(sizeof(ASTNode));
+        node->type = AST_CREATE_TABLE;
+        node->data = data;
+        execute_ast(node);
+        
+        free($3);
+        free(data->columns);
+        free(data);
+        free(node);
     }
     ;
 
 column_defs:
-      column_def
-    | column_defs ',' column_def
+    column_def {
+        $$ = (Column*)calloc(MAX_COLUMNS, sizeof(Column));
+        $$[0] = *$1;
+        free($1);
+    }
+    | column_defs COMMA column_def {
+        int count = 0;
+        while (count < MAX_COLUMNS && strlen($1[count].name) > 0) {
+            count++;
+        }
+        $1[count] = *$3;
+        $$ = $1;
+        free($3);
+    }
     ;
 
 column_def:
-    IDENTIFIER INT_T
-    {
-        int idx = root->schema.column_count++;
-        strcpy(root->schema.columns[idx].name, $1);
-        root->schema.columns[idx].type = TYPE_INT;
+    IDENTIFIER INT_TYPE {
+        Column *col = (Column*)malloc(sizeof(Column));
+        strncpy(col->name, $1, MAX_NAME_LEN - 1);
+        col->name[MAX_NAME_LEN - 1] = '\0';
+        col->type = TYPE_INT;
+        $$ = col;
+        free($1);
     }
-  | IDENTIFIER STRING_T
-    {
-        int idx = root->schema.column_count++;
-        strcpy(root->schema.columns[idx].name, $1);
-        root->schema.columns[idx].type = TYPE_STRING;
+    | IDENTIFIER TEXT_TYPE {
+        Column *col = (Column*)malloc(sizeof(Column));
+        strncpy(col->name, $1, MAX_NAME_LEN - 1);
+        col->name[MAX_NAME_LEN - 1] = '\0';
+        col->type = TYPE_TEXT;
+        $$ = col;
+        free($1);
     }
     ;
 
-/* ===============================
-   INSERT
-   =============================== */
-
 insert_stmt:
-    INSERT INTO IDENTIFIER VALUES '(' value_list ')'
-    {
-        $$ = ast_create_node(AST_INSERT);
-        strcpy($$->table_name, $3);
+    INSERT INTO IDENTIFIER VALUES LPAREN value_list RPAREN SEMICOLON {
+        InsertData *data = (InsertData*)malloc(sizeof(InsertData));
+        strncpy(data->table_name, $3, MAX_NAME_LEN - 1);
+        data->table_name[MAX_NAME_LEN - 1] = '\0';
+        data->values = $6;
+        data->value_count = 0;
+        
+        /* Count values */
+        Value *temp = $6;
+        while (data->value_count < MAX_COLUMNS) {
+            data->value_count++;
+            temp++;
+            /* Simple heuristic: if both int is 0 and str is empty, stop */
+            if (temp->int_val == 0 && strlen(temp->str_val) == 0) break;
+        }
+        
+        ASTNode *node = (ASTNode*)malloc(sizeof(ASTNode));
+        node->type = AST_INSERT;
+        node->data = data;
+        execute_ast(node);
+        
+        free($3);
+        free(data->values);
+        free(data);
+        free(node);
     }
     ;
 
 value_list:
-      value
-    | value_list ',' value
+    value {
+        $$ = (Value*)calloc(MAX_COLUMNS, sizeof(Value));
+        $$[0] = *$1;
+        free($1);
+    }
+    | value_list COMMA value {
+        int count = 0;
+        while (count < MAX_COLUMNS) {
+            /* Check if this slot is empty */
+            if ($1[count].int_val == 0 && strlen($1[count].str_val) == 0) {
+                break;
+            }
+            count++;
+        }
+        $1[count] = *$3;
+        $$ = $1;
+        free($3);
+    }
     ;
 
 value:
-      NUMBER
-    {
-        int idx = root->record.values[0][0] != '\0'
-                    ? strlen(root->record.values[0])
-                    : 0;
-        strcpy(root->record.values[idx], $1);
+    NUMBER {
+        Value *val = (Value*)calloc(1, sizeof(Value));
+        val->int_val = $1;
+        $$ = val;
     }
-    | STRING
-    {
-        int idx = root->record.values[0][0] != '\0'
-                    ? strlen(root->record.values[0])
-                    : 0;
-        strcpy(root->record.values[idx], $1);
+    | STRING {
+        Value *val = (Value*)calloc(1, sizeof(Value));
+        strncpy(val->str_val, $1, MAX_STRING_LEN - 1);
+        val->str_val[MAX_STRING_LEN - 1] = '\0';
+        $$ = val;
+        free($1);
     }
     ;
-
-/* ===============================
-   SELECT
-   =============================== */
 
 select_stmt:
-    SELECT '*' FROM IDENTIFIER
-    {
-        $$ = ast_create_node(AST_SELECT);
-        strcpy($$->table_name, $4);
-    }
-    ;
-
-/* ===============================
-   DELETE
-   =============================== */
-
-delete_stmt:
-    DELETE FROM IDENTIFIER
-    {
-        $$ = ast_create_node(AST_DELETE);
-        strcpy($$->table_name, $3);
+    SELECT ASTERISK FROM IDENTIFIER SEMICOLON {
+        SelectData *data = (SelectData*)malloc(sizeof(SelectData));
+        strncpy(data->table_name, $4, MAX_NAME_LEN - 1);
+        data->table_name[MAX_NAME_LEN - 1] = '\0';
+        data->select_all = 1;
+        
+        ASTNode *node = (ASTNode*)malloc(sizeof(ASTNode));
+        node->type = AST_SELECT;
+        node->data = data;
+        execute_ast(node);
+        
+        free($4);
+        free(data);
+        free(node);
     }
     ;
 
 %%
 
-/* ===============================
-   Error Handler
-   =============================== */
-
 void yyerror(const char *s) {
-    printf("Syntax error: %s\n", s);
+    fprintf(stderr, "Parse error at line %d: %s\n", yylineno, s);
 }

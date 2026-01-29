@@ -1,96 +1,61 @@
 %{
-#include "parser.tab.h"
+#include <stdio.h>
 #include <string.h>
+#include "../include/utils.h"
+#include "../include/executor.h"
+#include "parser.tab.h"
+
+extern int yylineno;
 %}
 
-/* ===============================
-   Flex options
-   =============================== */
 %option noyywrap
+%option yylineno
 %option case-insensitive
-
-/* ===============================
-   Regex Definitions
-   =============================== */
-DIGIT      [0-9]
-ID         [a-zA-Z_][a-zA-Z0-9_]*
-STRING     \'[^\']*\'
 
 %%
 
-/* ===============================
-   SQL Keywords
-   =============================== */
+[ \t\n]+                { /* Skip whitespace */ }
+"--".*                  { /* Skip single-line comments */ }
 
-"create"        { return CREATE; }
-"table"         { return TABLE; }
-"insert"        { return INSERT; }
-"into"          { return INTO; }
-"values"        { return VALUES; }
-"select"        { return SELECT; }
-"from"          { return FROM; }
-"delete"        { return DELETE; }
-"begin"         { return BEGIN_T; }
-"commit"        { return COMMIT; }
-"rollback"      { return ROLLBACK; }
-"exit"          { return EXIT_T; }
+CREATE                  { return CREATE; }
+TABLE                   { return TABLE; }
+INSERT                  { return INSERT; }
+INTO                    { return INTO; }
+SELECT                  { return SELECT; }
+FROM                    { return FROM; }
+VALUES                  { return VALUES; }
+INT                     { return INT_TYPE; }
+TEXT                    { return TEXT_TYPE; }
+EXIT                    { return EXIT; }
+QUIT                    { return EXIT; }
+SHOW                    { return SHOW; }
+TABLES                  { return TABLES; }
 
-/* ===============================
-   Data Types
-   =============================== */
+[a-zA-Z_][a-zA-Z0-9_]*  { 
+                            yylval.str = strdup(yytext); 
+                            return IDENTIFIER; 
+                        }
 
-"int"           { return INT_T; }
-"string"        { return STRING_T; }
+[0-9]+                  { 
+                            yylval.num = atoi(yytext); 
+                            return NUMBER; 
+                        }
 
-/* ===============================
-   Identifiers
-   =============================== */
+'([^']|'')*'            { 
+                            /* String literal with single quotes */
+                            yylval.str = strndup(yytext + 1, strlen(yytext) - 2);
+                            return STRING; 
+                        }
 
-{ID} {
-    yylval.str = strdup(yytext);
-    return IDENTIFIER;
-}
+"*"                     { return ASTERISK; }
+"("                     { return LPAREN; }
+")"                     { return RPAREN; }
+","                     { return COMMA; }
+";"                     { return SEMICOLON; }
 
-/* ===============================
-   Numbers
-   =============================== */
-
-{DIGIT}+ {
-    yylval.str = strdup(yytext);
-    return NUMBER;
-}
-
-/* ===============================
-   Strings
-   =============================== */
-
-{STRING} {
-    yylval.str = strdup(yytext + 1);   /* remove ' */
-    yylval.str[strlen(yylval.str) - 1] = '\0';
-    return STRING;
-}
-
-/* ===============================
-   Symbols
-   =============================== */
-
-","     { return ','; }
-";"     { return ';'; }
-"("     { return '('; }
-")"     { return ')'; }
-
-/* ===============================
-   Ignore spaces & newlines
-   =============================== */
-
-[ \t\r\n]+   { /* skip */ }
-
-/* ===============================
-   Unknown character
-   =============================== */
-
-. {
-    printf("Unknown character: %s\n", yytext);
-}
+.                       { 
+                            printf("Unexpected character: %s\n", yytext); 
+                            return yytext[0]; 
+                        }
 
 %%

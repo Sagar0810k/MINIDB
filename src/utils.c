@@ -1,51 +1,44 @@
-#include <stdio.h>
-#include <string.h>
+#include "../include/utils.h"
 #include <ctype.h>
-#include "utils.h"
 
-/* ===============================
-   Check if file exists
-   =============================== */
-
-int file_exists(const char *filename) {
-    FILE *fp = fopen(filename, "r");
-    if (fp) {
-        fclose(fp);
-        return 1;
-    }
-    return 0;
-}
-
-/* ===============================
-   Remove trailing newline
-   =============================== */
-
-void trim_newline(char *str) {
-    if (!str) return;
-    str[strcspn(str, "\n")] = '\0';
-}
-
-/* ===============================
-   Trim leading and trailing spaces
-   =============================== */
-
-void trim_whitespace(char *str) {
+/* Trim leading and trailing whitespace */
+char* trim_whitespace(char *str) {
     char *end;
-
-    while (isspace((unsigned char)*str)) str++;
-
-    if (*str == 0) return;
-
+    
+    /* Trim leading space */
+    while(isspace((unsigned char)*str)) str++;
+    
+    if(*str == 0)
+        return str;
+    
+    /* Trim trailing space */
     end = str + strlen(str) - 1;
-    while (end > str && isspace((unsigned char)*end)) end--;
-
-    *(end + 1) = '\0';
+    while(end > str && isspace((unsigned char)*end)) end--;
+    
+    /* Write new null terminator */
+    end[1] = '\0';
+    
+    return str;
 }
 
-/* ===============================
-   Print DB error
-   =============================== */
+/* Print error message */
+void print_error(const char *msg) {
+    printf("ERROR: %s\n", msg);
+}
 
-void db_error(const char *message) {
-    fprintf(stderr, "MiniDB Error: %s\n", message);
+/* Print success message */
+void print_success(const char *msg) {
+    printf("SUCCESS: %s\n", msg);
+}
+
+/* Convert data type to string */
+char* data_type_to_string(DataType type) {
+    switch(type) {
+        case TYPE_INT:
+            return "INT";
+        case TYPE_TEXT:
+            return "TEXT";
+        default:
+            return "UNKNOWN";
+    }
 }
