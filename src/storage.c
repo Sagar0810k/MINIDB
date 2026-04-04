@@ -2,148 +2,120 @@
 #include <sys/stat.h>
 
 #ifdef _WIN32
-    #include <direct.h>  /* For _mkdir on Windows */
+    #include <direct.h>
     #define PATH_SEPARATOR "\\"
-    #define mkdir(path, mode) _mkdir(path)
+    #define mkdir(path,mode) _mkdir(path)
 #else
     #define PATH_SEPARATOR "/"
 #endif
 
-/* Get file path for table */
 char* storage_get_filepath(const char *table_name) {
     static char filepath[512];
-    snprintf(filepath, sizeof(filepath), "data%s%s.tbl", PATH_SEPARATOR, table_name);
+    snprintf(filepath,sizeof(filepath),"data%s%s.tbl",PATH_SEPARATOR,table_name);
     return filepath;
 }
 
-/* Check if table file exists */
 int storage_table_exists(const char *table_name) {
-    char *filepath = storage_get_filepath(table_name);
-    FILE *file = fopen(filepath, "r");
-    if (file) {
-        fclose(file);
-        return 1;
-    }
-    return 0;
+    FILE *f=fopen(storage_get_filepath(table_name),"r");
+    if(f){fclose(f);return 1;} return 0;
 }
 
-/* Save table to file */
 int storage_save_table(Table *table) {
-    if (!table) {
-        print_error("Cannot save NULL table");
-        return -1;
+    if(!table){print_error("Cannot save NULL table");return -1;}
+    mkdir("data",0755);
+    FILE *f=fopen(storage_get_filepath(table->name),"w");
+    if(!f){print_error("Cannot open file for writing");return -1;}
+
+    fprintf(f,"--- SCHEMA ---\n");
+    fprintf(f,"TABLE: %s\n",table->name);
+    fprintf(f,"COLUMNS: %d\n",table->col_count);
+    for(int i=0;i<table->col_count;i++){
+        fprintf(f,"%s|%s|%d|%s\n",
+            table->columns[i].name,
+            data_type_to_string(table->columns[i].type),
+            table->columns[i].flags,
+            table->columns[i].default_val);
     }
-    
-    /* Ensure data directory exists */
-    mkdir("data", 0755);
-    
-    char *filepath = storage_get_filepath(table->name);
-    FILE *file = fopen(filepath, "w");
-    if (!file) {
-        print_error("Cannot open file for writing");
-        return -1;
-    }
-    
-    /* Write schema */
-    fprintf(file, "--- SCHEMA ---\n");
-    fprintf(file, "TABLE: %s\n", table->name);
-    fprintf(file, "COLUMNS: %d\n", table->col_count);
-    for (int i = 0; i < table->col_count; i++) {
-        fprintf(file, "%s %s\n", table->columns[i].name, 
-                data_type_to_string(table->columns[i].type));
-    }
-    
-    /* Write rows */
-    fprintf(file, "--- DATA ---\n");
-    for (int i = 0; i < table->row_count; i++) {
-        for (int j = 0; j < table->col_count; j++) {
-            if (table->columns[j].type == TYPE_INT) {
-                fprintf(file, "%d", table->rows[i].values[j].int_val);
-            } else {
-                fprintf(file, "%s", table->rows[i].values[j].str_val);
-            }
-            if (j < table->col_count - 1) {
-                fprintf(file, ",");
-            }
+    fprintf(f,"--- DATA ---\n");
+    for(int i=0;i<table->row_count;i++){
+        for(int j=0;j<table->col_count;j++){
+            Value *v=&table->rows[i].values[j];
+            if(v->is_null) fprintf(f,"\\N");
+            else if(table->columns[j].type==TYPE_FLOAT) fprintf(f,"%.10g",v->float_val);
+            else if(table->columns[j].type==TYPE_INT||table->columns[j].type==TYPE_BOOL)
+                fprintf(f,"%d",v->int_val);
+            else fprintf(f,"%s",v->str_val);
+            if(j<table->col_count-1) fprintf(f,"\x01"); /* ASCII SOH as delimiter */
         }
-        fprintf(file, "\n");
+        fprintf(f,"\n");
     }
-    
-    fclose(file);
-    return 0;
+    fclose(f); return 0;
 }
 
-/* Load table from file */
 Table* storage_load_table(const char *table_name) {
-    char *filepath = storage_get_filepath(table_name);
-    FILE *file = fopen(filepath, "r");
-    if (!file) {
-        return NULL;
-    }
-    
-    char line[1024];
-    char name[MAX_NAME_LEN];
-    int col_count = 0;
+    FILE *f=fopen(storage_get_filepath(table_name),"r");
+    if(!f) return NULL;
+
+    char line[4096], name[MAX_NAME_LEN];
+    int col_count=0;
     Column columns[MAX_COLUMNS];
-    
-    /* Read schema */
-    while (fgets(line, sizeof(line), file)) {
-        if (strncmp(line, "TABLE:", 6) == 0) {
-            sscanf(line, "TABLE: %s", name);
-        } else if (strncmp(line, "COLUMNS:", 8) == 0) {
-            sscanf(line, "COLUMNS: %d", &col_count);
-        } else if (strncmp(line, "---", 3) == 0) {
-            if (strstr(line, "DATA")) {
-                break; /* Start of data section */
-            }
-        } else {
-            /* Column definition */
-            char col_name[MAX_NAME_LEN];
-            char col_type[20];
-            if (sscanf(line, "%s %s", col_name, col_type) == 2) {
-                strncpy(columns[col_count - (col_count)].name, col_name, MAX_NAME_LEN - 1);
-                if (strcmp(col_type, "INT") == 0) {
-                    columns[col_count - (col_count)].type = TYPE_INT;
-                } else {
-                    columns[col_count - (col_count)].type = TYPE_TEXT;
-                }
+    int reading_schema=0,reading_data=0;
+
+    while(fgets(line,sizeof(line),f)){
+        line[strcspn(line,"\r\n")]='\0';
+        if(strcmp(line,"--- SCHEMA ---")==0){reading_schema=1;continue;}
+        if(strcmp(line,"--- DATA ---")==0){reading_schema=0;reading_data=1;break;}
+        if(reading_schema){
+            if(strncmp(line,"TABLE:",6)==0){sscanf(line,"TABLE: %63s",name);}
+            else if(strncmp(line,"COLUMNS:",8)==0){/* skip */}
+            else {
+                /* format: name|type|flags|default */
+                char cname[MAX_NAME_LEN],ctype[20],cdef[MAX_STRING_LEN];
+                int cflags=0;
+                char *tok=strtok(line,"|");
+                if(!tok) continue;
+                strncpy(cname,tok,MAX_NAME_LEN-1);
+                tok=strtok(NULL,"|"); if(!tok) continue;
+                strncpy(ctype,tok,19);
+                tok=strtok(NULL,"|"); if(tok) cflags=atoi(tok);
+                tok=strtok(NULL,"|"); if(tok) strncpy(cdef,tok,MAX_STRING_LEN-1); else cdef[0]='\0';
+                strncpy(columns[col_count].name,cname,MAX_NAME_LEN-1);
+                columns[col_count].type=string_to_data_type(ctype);
+                columns[col_count].flags=cflags;
+                strncpy(columns[col_count].default_val,cdef,MAX_STRING_LEN-1);
                 col_count++;
             }
         }
     }
-    
-    /* Create table */
-    Table *table = table_create(name, columns, col_count);
-    if (!table) {
-        fclose(file);
-        return NULL;
-    }
-    
-    /* Read data rows */
-    while (fgets(line, sizeof(line), file)) {
-        if (strlen(line) <= 1) continue;
-        
-        Value values[MAX_COLUMNS];
-        char *token = strtok(line, ",");
-        int col_idx = 0;
-        
-        while (token && col_idx < col_count) {
-            token = trim_whitespace(token);
-            if (table->columns[col_idx].type == TYPE_INT) {
-                values[col_idx].int_val = atoi(token);
-            } else {
-                strncpy(values[col_idx].str_val, token, MAX_STRING_LEN - 1);
-                values[col_idx].str_val[MAX_STRING_LEN - 1] = '\0';
+
+    Table *table=table_create(name,columns,col_count);
+    if(!table){fclose(f);return NULL;}
+
+    if(reading_data){
+        while(fgets(line,sizeof(line),f)){
+            line[strcspn(line,"\r\n")]='\0';
+            if(strlen(line)==0) continue;
+            Value values[MAX_COLUMNS];
+            memset(values,0,sizeof(values));
+            char *tok=strtok(line,"\x01");
+            int ci=0;
+            while(tok&&ci<col_count){
+                if(strcmp(tok,"\\N")==0){
+                    values[ci].is_null=1;
+                } else {
+                    values[ci].is_null=0;
+                    if(columns[ci].type==TYPE_FLOAT){
+                        values[ci].float_val=atof(tok); values[ci].is_float=1;
+                    } else if(columns[ci].type==TYPE_INT||columns[ci].type==TYPE_BOOL){
+                        values[ci].int_val=atoi(tok);
+                    } else {
+                        strncpy(values[ci].str_val,tok,MAX_STRING_LEN-1);
+                    }
+                }
+                tok=strtok(NULL,"\x01"); ci++;
             }
-            token = strtok(NULL, ",");
-            col_idx++;
-        }
-        
-        if (col_idx > 0) {
-            table_insert_row(table, values);
+            if(ci>0) table_insert_row(table,values);
         }
     }
-    
-    fclose(file);
-    return table;
+    fclose(f); return table;
 }
