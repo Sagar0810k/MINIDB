@@ -47,11 +47,11 @@ This project demonstrates low-level concepts such as lexical analysis, parsing, 
 ```
 MINIDB/
 ├── include/           # Header files
-    ├──db.h
-    ├──executor.h
-    ├──storage.h
-    ├──table.h
-    ├──utils.h
+│   ├──db.h
+│   ├──executor.h
+│   ├──storage.h
+│   ├──table.h
+│   ├──utils.h
 ├── src/
 │   ├── main.c         # Entry point
 │   ├── db.c           # Core database logic
