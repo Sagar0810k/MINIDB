@@ -1,4 +1,4 @@
-# MINIDB 🗄️
+# MINIDB 
 
 ![Visitor Count](https://visitor-badge.laobi.icu/badge?page_id=Sagar0810k.MINIDB)
 ![Language](https://img.shields.io/badge/language-C-blue.svg)
@@ -48,6 +48,11 @@ This project demonstrates low-level concepts such as lexical analysis, parsing, 
 ```
 MINIDB/
 ├── include/           # Header files
+    ├──db.h
+    ├──executor.h
+    ├──storage.h
+    ├──table.h
+    ├──utils.h
 ├── src/
 │   ├── main.c         # Entry point
 │   ├── db.c           # Core database logic
