@@ -3,7 +3,6 @@
 ![Visitor Count](https://visitor-badge.laobi.icu/badge?page_id=Sagar0810k.MINIDB)
 ![Language](https://img.shields.io/badge/language-C-blue.svg)
 ![Build](https://img.shields.io/badge/build-passing-brightgreen.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)
 
 A lightweight, mini relational **Database Management System (DBMS)** built from scratch in **C**, with a custom lexer and parser powered by **Flex** and **Bison**.
