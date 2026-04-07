@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MiniDB Studio — Web IDE + AI Assistant</title>
+    <meta name="description" content="Write, run, and debug MiniDB-Lang code with an AI-powered chatbot assistant.">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗄️</text></svg>">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="app-layout">
+
+        <!-- ═══ Sidebar ═══════════════════════════════════════════ -->
+        <aside class="sidebar">
+            <div class="sidebar-logo">
+                <div class="logo-icon">🗄️</div>
+                <div class="logo-title">MiniDB Studio</div>
+                <div class="logo-version">v2.0 — Web IDE + AI Assistant</div>
+            </div>
+
+            <div class="sidebar-divider"></div>
+
+            <!-- Quick Examples -->
+            <div class="sidebar-section-title">📝 Quick Examples</div>
+
+            <button class="example-btn" onclick="loadExample('create')">Create & Query</button>
+            <button class="example-btn" onclick="loadExample('aggregates')">Aggregates</button>
+            <button class="example-btn" onclick="loadExample('update')">Update & Delete</button>
+            <button class="example-btn" onclick="loadExample('join')">Join Tables</button>
+            <button class="example-btn" onclick="loadExample('order')">Order & Limit</button>
+            <button class="example-btn" onclick="loadExample('alter')">Alter Table</button>
+            <button class="example-btn error-example" onclick="loadExample('syntax_error')">❌ Syntax Error</button>
+            <button class="example-btn error-example" onclick="loadExample('semantic_error')">❌ Semantic Error</button>
+
+            <div class="sidebar-divider"></div>
+
+            <!-- Keywords -->
+            <div class="sidebar-section-title">📖 Keywords</div>
+            <div class="kw-container">
+                {% for kw in keywords %}
+                <span class="kw-badge">{{ kw }}</span>
+                {% endfor %}
+            </div>
+
+            <div class="sidebar-divider"></div>
+
+            <div class="sidebar-footer">
+                Built with ❤️ for MINIDB<br>
+                <span>Flask • Python • OpenRouter AI</span>
+            </div>
+        </aside>
+
+        <!-- ═══ Main Content ══════════════════════════════════════ -->
+        <main class="main-content">
+
+            <!-- Hero Banner -->
+            <div class="hero-banner">
+                <div class="hero-title">MiniDB Studio</div>
+                <div class="hero-subtitle">
+                    Write, run, and debug MiniDB-Lang with an AI-powered assistant — all in your browser.
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <div class="tab-bar">
+                <button class="tab-btn active" onclick="switchTab('editor')" id="tab-btn-editor">
+                    ⌨️ Code Editor
+                </button>
+                <button class="tab-btn" onclick="switchTab('chat')" id="tab-btn-chat">
+                    🤖 AI Assistant
+                </button>
+            </div>
+
+            <!-- ─── Editor Tab ────────────────────────────────── -->
+            <div class="tab-content active" id="tab-editor">
+                <!-- Unified Terminal -->
+                <div class="terminal-repl">
+                    <div class="terminal-header">
+                        <span class="terminal-dot dot-red"></span>
+                        <span class="terminal-dot dot-yellow"></span>
+                        <span class="terminal-dot dot-green"></span>
+                        <span class="terminal-label">MiniDB Terminal</span>
+                        <div class="terminal-actions">
+                            <button class="terminal-action-btn" onclick="analyzeLastCommand()" id="btnAnalyze" title="Analyze last command">
+                                🔍 Analyze
+                            </button>
+                            <button class="terminal-action-btn terminal-action-clear" onclick="clearTerminal()" title="Clear terminal">
+                                🗑️ Clear
+                            </button>
+                        </div>
+                    </div>
+                    <div class="terminal-body" id="terminalBody">
+                        <div class="terminal-history" id="terminalHistory">
+                            <div class="terminal-welcome">
+                                <span class="welcome-accent">MiniDB Studio v2.0</span> — Interactive Terminal<br>
+                                Type MiniDB-Lang commands below. Press <kbd>Enter</kbd> to execute.<br>
+                                Use sidebar examples to get started. Type <code>HELP;</code> for commands.
+                            </div>
+                        </div>
+                        <div class="terminal-input-line">
+                            <span class="terminal-prompt">MiniDB&gt;</span>
+                            <input type="text" class="terminal-input" id="terminalInput"
+                                   spellcheck="false" autocomplete="off"
+                                   placeholder="Type a MiniDB command..."
+                                   autofocus>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ─── Chat Tab ──────────────────────────────────── -->
+            <div class="tab-content" id="tab-chat">
+                <div class="chat-container">
+                    <div class="chat-header">
+                        <span class="panel-icon">🤖</span>
+                        <span class="panel-title">MiniDB AI Assistant</span>
+                        <span class="chat-label">Powered by AI</span>
+                    </div>
+
+                    <!-- Chat messages -->
+                    <div class="chat-messages" id="chatMessages">
+                        <div class="chat-empty" id="chatEmpty">
+                            <div class="chat-empty-icon">💬</div>
+                            <h4>How can I help you today?</h4>
+                            <p>
+                                Paste MiniDB code for debugging • Ask about SQL syntax<br>
+                                Or ask me anything else — I'm a general-purpose assistant too!
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Chat input -->
+                    <div class="chat-input-area">
+                        <input type="text" class="chat-input" id="chatInput"
+                               placeholder="Ask anything — MiniDB help, code fixing, or casual questions..."
+                               onkeydown="if(event.key==='Enter')sendChat()">
+                        <button class="btn-send" onclick="sendChat()" id="btnSend">
+                            Send ➤
+                        </button>
+                    </div>
+
+                    <!-- Quick actions -->
+                    <div class="quick-actions">
+                        <button class="btn-quick" onclick="sendEditorCode()">
+                            📋 Send Editor Code
+                        </button>
+                        <button class="btn-quick" onclick="askGrammar()">
+                            📖 Explain Grammar
+                        </button>
+                        <button class="btn-quick" onclick="clearChat()">
+                            🗑️ Clear Chat
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}?v=3"></script>
+</body>
+</html>

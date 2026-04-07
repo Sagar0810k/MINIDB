@@ -1,0 +1,8 @@
+--- SCHEMA ---
+TABLE: customers
+COLUMNS: 2
+id INT 0
+name TEXT 0
+--- DATA ---
+1|Alice
+2|Bob

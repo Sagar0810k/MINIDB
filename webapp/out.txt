@@ -1,0 +1,28 @@
+
+============================================
+         MiniDB v2.0                        
+   Custom SQL Database Management           
+   Type 'HELP;' for commands, 'EXIT;' quit  
+============================================
+
+Commands:
+  CREATE TABLE t (id INT PRIMARY KEY, name TEXT UNIQUE);
+  INSERT INTO t VALUES (1, 'Alice');
+  SELECT * FROM t;
+  SELECT col1, col2 FROM t;
+  SELECT * FROM t WHERE age > 18 AND name = 'Ali';
+  SELECT * FROM t WHERE age < 30 OR name = 'Bob';
+  SELECT * FROM t ORDER BY age DESC LIMIT 5;
+  SELECT COUNT(*) FROM t;
+  SELECT SUM(age) FROM t WHERE active = 1;
+  SELECT AVG(score) FROM t;
+  SELECT * FROM t1 INNER JOIN t2 ON t1.id = t2.tid;
+  UPDATE t SET age = 25 WHERE name = 'Ali';
+  DELETE FROM t WHERE id = 3;
+  ALTER TABLE t ADD COLUMN email TEXT;
+  ALTER TABLE t DROP COLUMN email;
+  SHOW TABLES;
+  EXIT;
+
+MiniDB> ERROR: Table 'test2' already exists
+MiniDB> Goodbye!

@@ -1,0 +1,5 @@
+--- SCHEMA ---
+TABLE: test2
+COLUMNS: 1
+id INT 0
+--- DATA ---
