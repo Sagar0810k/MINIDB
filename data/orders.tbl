@@ -1,9 +1,0 @@
---- SCHEMA ---
-TABLE: orders
-COLUMNS: 3
-id INT 0
-product TEXT 0
-customer_id INT 0
---- DATA ---
-101|Laptop|1
-102|Phone|2
